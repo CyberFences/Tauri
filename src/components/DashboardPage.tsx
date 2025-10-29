@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { WalletData } from '../services/WalletService';
+import { BlockchainService } from '../services/BlockchainService';
 import { 
   AreaChart, 
   Area, 
@@ -25,7 +26,8 @@ import {
   Download,
   Filter,
   Eye,
-  EyeOff
+  EyeOff,
+  RefreshCw
 } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -56,6 +58,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [blockchainStatus, setBlockchainStatus] = useState<{
+    isRegistered: boolean;
+    isLoading: boolean;
+    isValidating: boolean;
+  }>({
+    isRegistered: false,
+    isLoading: true,
+    isValidating: false
+  });
+
+  const refreshBlockchainStatus = async () => {
+    setBlockchainStatus(prev => ({ ...prev, isLoading: true, isValidating: false }));
+    try {
+      const isRegistered = await BlockchainService.verifyMachineRegistration(wallet);
+      setBlockchainStatus({
+        isRegistered,
+        isLoading: false,
+        isValidating: false
+      });
+      console.log('Blockchain status refreshed:', isRegistered);
+    } catch (error) {
+      console.error('Failed to refresh blockchain status:', error);
+      setBlockchainStatus({
+        isRegistered: false,
+        isLoading: false,
+        isValidating: false
+      });
+    }
+  };
+
 
   // Mock data for charts
   const networkData = [
@@ -82,42 +114,76 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   // Mock data for demonstration
   useEffect(() => {
-    const mockAlerts: Alert[] = [
-      {
-        id: '1',
-        timestamp: new Date(Date.now() - 5 * 60 * 1000),
-        score: 0.94,
-        label: 'Malicious',
-        status: 'Pending',
-        source_ip: '192.168.1.100',
-        destination_ip: '10.0.0.1',
-        packet_count: 1250
-      },
-      {
-        id: '2',
-        timestamp: new Date(Date.now() - 15 * 60 * 1000),
-        score: 0.02,
-        label: 'Normal',
-        status: 'Committed',
-        source_ip: '192.168.1.101',
-        destination_ip: '8.8.8.8',
-        packet_count: 45
-      },
-      {
-        id: '3',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000),
-        score: 0.87,
-        label: 'Suspicious',
-        status: 'Pending',
-        source_ip: '192.168.1.102',
-        destination_ip: '1.1.1.1',
-        packet_count: 890
-      }
-    ];
+    const loadData = async () => {
+      // Load mock alerts
+      const mockAlerts: Alert[] = [
+        {
+          id: '1',
+          timestamp: new Date(Date.now() - 5 * 60 * 1000),
+          score: 0.94,
+          label: 'Malicious',
+          status: 'Pending',
+          source_ip: '192.168.1.100',
+          destination_ip: '10.0.0.1',
+          packet_count: 1250
+        },
+        {
+          id: '2',
+          timestamp: new Date(Date.now() - 15 * 60 * 1000),
+          score: 0.02,
+          label: 'Normal',
+          status: 'Committed',
+          source_ip: '192.168.1.101',
+          destination_ip: '8.8.8.8',
+          packet_count: 45
+        },
+        {
+          id: '3',
+          timestamp: new Date(Date.now() - 30 * 60 * 1000),
+          score: 0.87,
+          label: 'Suspicious',
+          status: 'Pending',
+          source_ip: '192.168.1.102',
+          destination_ip: '1.1.1.1',
+          packet_count: 890
+        }
+      ];
 
-    setAlerts(mockAlerts);
-    setIsLoading(false);
-  }, []);
+      setAlerts(mockAlerts);
+
+      // Check blockchain registration status
+      try {
+        // Check if wallet has validating state
+        const isValidating = (wallet as any)?._isValidating || false;
+        
+        if (isValidating) {
+          setBlockchainStatus({
+            isRegistered: false,
+            isLoading: false,
+            isValidating: true
+          });
+        } else {
+          const isRegistered = await BlockchainService.verifyMachineRegistration(wallet);
+          setBlockchainStatus({
+            isRegistered,
+            isLoading: false,
+            isValidating: false
+          });
+        }
+      } catch (error) {
+        console.error('Failed to check blockchain status:', error);
+        setBlockchainStatus({
+          isRegistered: false,
+          isLoading: false,
+          isValidating: false
+        });
+      }
+
+      setIsLoading(false);
+    };
+
+    loadData();
+  }, [wallet]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', { 
@@ -275,7 +341,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         {/* Dashboard Content */}
         <div className="flex-1 p-6 overflow-y-auto">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
@@ -327,6 +393,65 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Blockchain Registration Status */}
+            <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm text-palladium">Blockchain</p>
+                    <button
+                      onClick={refreshBlockchainStatus}
+                      className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                      title="Refresh blockchain status"
+                    >
+                      <RefreshCw className="w-3 h-3 text-palladium hover:text-night-black" />
+                    </button>
+                  </div>
+                  {blockchainStatus.isLoading ? (
+                    <p className="text-2xl font-bold text-palladium">Loading...</p>
+                  ) : blockchainStatus.isValidating ? (
+                    <>
+                      <p className="text-2xl font-bold text-blue-600">Validating...</p>
+                      <p className="text-sm text-blue-600">
+                        Confirming registration on blockchain
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-2xl font-bold text-night-black">
+                        {blockchainStatus.isRegistered ? 'Registered' : 'Not Registered'}
+                      </p>
+                      <p className={`text-sm ${
+                        blockchainStatus.isRegistered ? 'text-green-600' : 'text-orange-600'
+                      }`}>
+                        {blockchainStatus.isRegistered ? 'On-chain' : 'Pending'}
+                      </p>
+                    </>
+                  )}
+                </div>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  blockchainStatus.isLoading 
+                    ? 'bg-gray-100' 
+                    : blockchainStatus.isValidating
+                      ? 'bg-blue-100'
+                    : blockchainStatus.isRegistered 
+                      ? 'bg-green-100' 
+                      : 'bg-orange-100'
+                }`}>
+                  {blockchainStatus.isLoading ? (
+                    <div className="w-4 h-4 border-2 border-palladium border-t-transparent rounded-full animate-spin"></div>
+                  ) : blockchainStatus.isValidating ? (
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                  ) : blockchainStatus.isRegistered ? (
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  ) : (
+                    <Clock className="w-6 h-6 text-orange-600" />
+                  )}
+                </div>
+              </div>
+            </div>
+            
           </div>
 
           {/* Charts Row */}

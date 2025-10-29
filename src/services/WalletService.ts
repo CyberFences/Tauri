@@ -6,6 +6,7 @@ export interface WalletData {
   public_key: string;
   address: string;
   machine_id: string;
+  _isValidating?: boolean; // Optional field for UI state
 }
 
 export interface AlertPayload {

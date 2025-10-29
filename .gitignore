@@ -22,3 +22,17 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables (contains sensitive data)
+.env
+.env.local
+.env.production
+.env.staging
+
+# Security - Private keys and sensitive data
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/

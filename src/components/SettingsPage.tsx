@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WalletData } from '../services/WalletService';
-import { WalletService } from '../services/WalletService';
+import { BlockchainService } from '../services/BlockchainService';
 import { 
   Shield, 
   Activity, 
@@ -8,19 +8,13 @@ import {
   CheckCircle, 
   Clock, 
   TrendingUp, 
-  Users, 
   Settings, 
-  Bell, 
-  Search,
-  Download,
-  Filter,
   Eye,
   EyeOff,
   Copy,
   Key,
-  User,
   Wifi,
-  HardDrive
+  RefreshCw
 } from 'lucide-react';
 
 interface SettingsPageProps {
@@ -41,6 +35,51 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [showMnemonic, setShowMnemonic] = useState(false);
   const [showAddress, setShowAddress] = useState(false);
   const [showMachineId, setShowMachineId] = useState(false);
+  const [blockchainStatus, setBlockchainStatus] = useState<{
+    isRegistered: boolean;
+    isLoading: boolean;
+  }>({
+    isRegistered: false,
+    isLoading: true
+  });
+
+  const refreshBlockchainStatus = async () => {
+    setBlockchainStatus(prev => ({ ...prev, isLoading: true }));
+    try {
+      const isRegistered = await BlockchainService.verifyMachineRegistration(wallet);
+      setBlockchainStatus({
+        isRegistered,
+        isLoading: false
+      });
+      console.log('Blockchain status refreshed:', isRegistered);
+    } catch (error) {
+      console.error('Failed to refresh blockchain status:', error);
+      setBlockchainStatus({
+        isRegistered: false,
+        isLoading: false
+      });
+    }
+  };
+
+  useEffect(() => {
+    const checkBlockchainStatus = async () => {
+      try {
+        const isRegistered = await BlockchainService.verifyMachineRegistration(wallet);
+        setBlockchainStatus({
+          isRegistered,
+          isLoading: false
+        });
+      } catch (error) {
+        console.error('Failed to check blockchain status:', error);
+        setBlockchainStatus({
+          isRegistered: false,
+          isLoading: false
+        });
+      }
+    };
+
+    checkBlockchainStatus();
+  }, [wallet]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -316,6 +355,84 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 </div>
                 <p className="text-xs text-palladium mt-1">⚠️ Store this safely! Can restore your wallet</p>
               </div>
+            </div>
+
+            {/* Blockchain Status Section */}
+            <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-precious-persimmon rounded-lg flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-brilliance" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-night-black">Blockchain Registration</h2>
+                    <p className="text-palladium">Your machine's on-chain identity status</p>
+                  </div>
+                </div>
+                <button
+                  onClick={refreshBlockchainStatus}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Refresh blockchain status"
+                >
+                  <RefreshCw className="w-5 h-5 text-palladium hover:text-night-black" />
+                </button>
+              </div>
+
+              <div className="bg-violet-essence rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      blockchainStatus.isLoading 
+                        ? 'bg-gray-400' 
+                        : blockchainStatus.isRegistered 
+                          ? 'bg-green-500' 
+                          : 'bg-orange-500'
+                    }`}></div>
+                    <div>
+                      <p className="font-medium text-night-black">
+                        {blockchainStatus.isLoading 
+                          ? 'Checking registration...' 
+                          : blockchainStatus.isRegistered 
+                            ? 'Machine Registered on Blockchain' 
+                            : 'Machine Not Registered'
+                        }
+                      </p>
+                      <p className="text-sm text-palladium">
+                        {blockchainStatus.isLoading 
+                          ? 'Verifying blockchain status...' 
+                          : blockchainStatus.isRegistered 
+                            ? 'Your machine is registered and verified on the blockchain' 
+                            : 'Your machine needs to be registered on the blockchain'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {blockchainStatus.isLoading ? (
+                      <div className="w-6 h-6 border-2 border-palladium border-t-transparent rounded-full animate-spin"></div>
+                    ) : blockchainStatus.isRegistered ? (
+                      <CheckCircle className="w-6 h-6 text-green-600" />
+                    ) : (
+                      <Clock className="w-6 h-6 text-orange-600" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {!blockchainStatus.isLoading && !blockchainStatus.isRegistered && (
+                <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-start">
+                    <AlertTriangle className="w-5 h-5 text-orange-600 mr-3 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-medium text-orange-800 mb-1">Registration Required</h3>
+                      <p className="text-sm text-orange-700">
+                        Your machine needs to be registered on the blockchain to participate in the network. 
+                        This will happen automatically when you create a new wallet or restore an existing one.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Security Notice */}

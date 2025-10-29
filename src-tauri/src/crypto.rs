@@ -85,7 +85,7 @@ pub fn restore_wallet(mnemonic_phrase: String) -> Result<WalletData, String> {
         private_key: format!("0x{}", encode(secret_key.secret_bytes())),
         public_key: format!("0x{}", encode(pub_bytes)),
         address,
-        machine_id: generate_machine_id(),
+        machine_id: "".to_string(), // Will be retrieved from blockchain
     })
 }
 

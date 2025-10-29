@@ -8,6 +8,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { HistoryVerification } from "./components/HistoryVerification";
 import { WalletData } from "./services/WalletService";
 import { EncryptedStorage } from "./services/EncryptedStorage";
+import { BlockchainService } from "./services/BlockchainService";
 import "./App.css";
 
 function App() {
@@ -35,7 +36,28 @@ function App() {
             console.log('Wallet validity:', isValid);
             
             if (isValid) {
-              setWallet(walletData);
+              // Retrieve machine ID from blockchain if wallet was restored
+              let finalWalletData = walletData;
+              if (!walletData.machine_id || walletData.machine_id === '') {
+                console.log('Retrieving machine ID from blockchain for existing wallet...');
+                const machineId = await BlockchainService.getMachineIdByPublicKey(walletData.public_key);
+                if (machineId) {
+                  finalWalletData = {
+                    ...walletData,
+                    machine_id: machineId
+                  };
+                  // Update stored wallet data with correct machine ID
+                  await EncryptedStorage.storeWallet(finalWalletData);
+                  console.log('Machine ID retrieved and updated:', machineId);
+                }
+              }
+              
+              // Verify blockchain registration
+              console.log('Verifying blockchain registration...');
+              const isRegistered = await BlockchainService.verifyMachineRegistration(finalWalletData);
+              console.log('Blockchain registration status:', isRegistered);
+              
+              setWallet(finalWalletData);
               setCurrentView('dashboard');
               console.log('Navigating to dashboard');
             } else {
@@ -63,6 +85,63 @@ function App() {
       // Store wallet data encrypted
       await EncryptedStorage.storeWallet(walletData);
       setWallet(walletData);
+      
+      // Register machine on blockchain
+      console.log('Registering machine on blockchain...');
+      const registrationResult = await BlockchainService.registerMachine(walletData);
+      
+      if (registrationResult.success) {
+        console.log('Machine successfully registered on blockchain:', registrationResult.transactionHash);
+        
+        // Start polling for registration confirmation
+        const pollForRegistration = async () => {
+          let attempts = 0;
+          const maxAttempts = 30; // 30 seconds max
+          
+          // Set validating state immediately
+          setWallet({...walletData, _isValidating: true});
+          
+          const checkRegistration = async () => {
+            try {
+              console.log(`Checking registration status (attempt ${attempts + 1}/${maxAttempts})...`);
+              const isRegistered = await BlockchainService.verifyMachineRegistration(walletData);
+              
+              if (isRegistered) {
+                console.log('Registration confirmed on blockchain!');
+                // Force re-render by updating wallet state
+                setWallet({...walletData, _isValidating: false});
+                return;
+              }
+              
+              attempts++;
+              if (attempts < maxAttempts) {
+                setTimeout(checkRegistration, 1000); // Check every 1 second
+              } else {
+                console.log('Registration check timeout - will show as pending');
+                setWallet({...walletData, _isValidating: false});
+              }
+            } catch (error) {
+              console.error('Failed to check registration status:', error);
+              attempts++;
+              if (attempts < maxAttempts) {
+                setTimeout(checkRegistration, 1000);
+              } else {
+                setWallet({...walletData, _isValidating: false});
+              }
+            }
+          };
+          
+          // Start checking after 2 seconds
+          setTimeout(checkRegistration, 2000);
+        };
+        
+        pollForRegistration();
+      } else {
+        console.warn('Failed to register machine on blockchain:', registrationResult.error);
+        // Don't show error alerts - just log and continue
+        // The wallet is still created and stored locally
+      }
+      
       setCurrentView('dashboard');
     } catch (error) {
       console.error('Failed to store wallet:', error);
@@ -71,7 +150,38 @@ function App() {
   };
 
   const handleWalletRestored = async (walletData: WalletData) => {
-    await handleWalletCreated(walletData);
+    try {
+      // Store wallet data encrypted
+      await EncryptedStorage.storeWallet(walletData);
+      
+      // Retrieve machine ID from blockchain
+      console.log('Retrieving machine ID from blockchain for restored wallet...');
+      const machineId = await BlockchainService.getMachineIdByPublicKey(walletData.public_key);
+      
+      if (machineId) {
+        // Update wallet data with the correct machine ID from blockchain
+        const updatedWalletData = {
+          ...walletData,
+          machine_id: machineId
+        };
+        
+        // Store the updated wallet data
+        await EncryptedStorage.storeWallet(updatedWalletData);
+        setWallet(updatedWalletData);
+        
+        console.log('Machine ID retrieved from blockchain:', machineId);
+        console.log('Wallet restored and machine ID updated');
+      } else {
+        // Machine not registered on blockchain
+        setWallet(walletData);
+        console.log('Wallet restored but machine not registered on blockchain');
+      }
+      
+      setCurrentView('dashboard');
+    } catch (error) {
+      console.error('Failed to restore wallet:', error);
+      alert('Failed to restore wallet. Please try again.');
+    }
   };
 
   const handleLogout = () => {

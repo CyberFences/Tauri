@@ -1,5 +1,6 @@
 mod crypto;
 mod packet_capture;
+mod blockchain;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -21,6 +22,12 @@ pub fn run() {
             crypto::decrypt_data,
             crypto::encrypt_wallet_data,
             crypto::decrypt_wallet_data,
+            // Blockchain commands
+            blockchain::register_machine_on_blockchain,
+            blockchain::register_machine_gasless,
+            blockchain::check_machine_registration,
+            blockchain::get_machine_id_by_public_key,
+            blockchain::get_total_registered_machines,
             // Packet capture commands
                 packet_capture::start_packet_capture,
                 packet_capture::stop_packet_capture,

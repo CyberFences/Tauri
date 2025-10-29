@@ -44,4 +44,11 @@ is_elevated = "0.1"
 csv = "1.3"
 # Additional utilities
 anyhow = "1.0"
+# Blockchain dependencies
+ethers = "2.0"
+ethers-core = "2.0"
+ethers-providers = "2.0"
+ethers-signers = "2.0"
+ethers-contract = "2.0"
+ethers-middleware = "2.0"
 
