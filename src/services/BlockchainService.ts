@@ -12,7 +12,7 @@ export interface RegistrationResult {
 export class BlockchainService {
   /**
    * Register a machine on the blockchain
-   * Tries gasless registration first, falls back to user-paid gas if needed
+   * Tries meta-transaction first, then gasless, then user-paid gas
    */
   static async registerMachine(wallet: WalletData): Promise<RegistrationResult> {
     try {
@@ -31,7 +31,20 @@ export class BlockchainService {
         };
       }
 
-      // Try gasless registration first if enabled
+      // Try meta-transaction first (user signs, relayer pays)
+      try {
+        console.log('Attempting meta-transaction registration...');
+        const result = await this.registerMachineMetaTransaction(wallet);
+        if (result.success) {
+          console.log('Meta-transaction registration successful:', result.transactionHash);
+          return result;
+        }
+        console.log('Meta-transaction registration failed, trying gasless:', result.error);
+      } catch (error) {
+        console.log('Meta-transaction registration error, trying gasless:', error);
+      }
+
+      // Try gasless registration as fallback
       console.log('Gasless config check:', {
         ENABLE_GASLESS: GASLESS_CONFIG.ENABLE_GASLESS,
         HAS_PRIVATE_KEY: !!GASLESS_CONFIG.BACKEND_GAS_WALLET_PRIVATE_KEY,
@@ -89,6 +102,49 @@ export class BlockchainService {
       return {
         success: false,
         error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Register a machine using meta-transactions (user signs, relayer pays gas)
+   */
+  static async registerMachineMetaTransaction(wallet: WalletData): Promise<RegistrationResult> {
+    try {
+      // 1. Create a simple message for user to sign
+      const message = {
+        from: wallet.address,
+        to: BLOCKCHAIN_CONFIG.CONTRACT_ADDRESS,
+        machineId: wallet.machine_id,
+        publicKey: wallet.public_key,
+        timestamp: Date.now()
+      };
+
+      // 2. User signs the message
+      const signature = await this.signMessage(wallet.private_key, JSON.stringify(message));
+      console.log('User signature:', signature);
+
+      // 3. Send to relayer for execution
+      const result = await invoke('execute_meta_transaction', {
+        contractAddress: BLOCKCHAIN_CONFIG.CONTRACT_ADDRESS,
+        rpcUrl: BLOCKCHAIN_CONFIG.RPC_URL,
+        chainId: BLOCKCHAIN_CONFIG.CHAIN_ID,
+        userAddress: wallet.address,
+        machineId: wallet.machine_id,
+        publicKey: wallet.public_key,
+        signature: signature,
+        nonce: 0 // Not used in current implementation
+      });
+
+      return {
+        success: true,
+        transactionHash: result as string
+      };
+    } catch (error) {
+      console.error('Meta-transaction registration failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Meta-transaction registration failed'
       };
     }
   }
@@ -169,6 +225,24 @@ export class BlockchainService {
     } catch (error) {
       console.error('Failed to verify machine registration:', error);
       return false;
+    }
+  }
+
+  // ---- META-TRANSACTION HELPER METHODS ----
+
+  /**
+   * Sign message with user's private key
+   */
+  static async signMessage(privateKey: string, message: string): Promise<string> {
+    try {
+      const result = await invoke('sign_message', {
+        privateKey: privateKey,
+        message: message
+      });
+      return result as string;
+    } catch (error) {
+      console.error('Failed to sign message:', error);
+      throw new Error('Failed to sign message');
     }
   }
 }
