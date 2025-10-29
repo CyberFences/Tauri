@@ -2,59 +2,80 @@ import { useState, useEffect } from "react";
 import { Intro } from "./components/Intro";
 import { TermsAndConditions } from "./components/TermsAndConditions";
 import { Onboarding } from "./components/Onboarding";
-import { Dashboard } from "./components/Dashboard";
+import { DashboardPage } from "./components/DashboardPage";
+import { NetworkPage } from "./components/NetworkPage";
+import { SettingsPage } from "./components/SettingsPage";
 import { HistoryVerification } from "./components/HistoryVerification";
 import { WalletData } from "./services/WalletService";
+import { EncryptedStorage } from "./services/EncryptedStorage";
 import "./App.css";
 
 function App() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<'intro' | 'terms' | 'onboarding' | 'dashboard' | 'history'>('intro');
+  const [currentView, setCurrentView] = useState<'intro' | 'terms' | 'onboarding' | 'dashboard' | 'network' | 'settings' | 'history'>('intro');
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
-    // Check if wallet exists in localStorage
-    const savedWallet = localStorage.getItem('cyberfence_wallet');
-    const savedTerms = localStorage.getItem('cyberfence_terms_accepted');
-    
-    if (savedTerms === 'true') {
-      setTermsAccepted(true);
-    }
-    
-    if (savedWallet && savedTerms === 'true') {
+    const loadApp = async () => {
       try {
-        const walletData = JSON.parse(savedWallet);
-        setWallet(walletData);
-        setCurrentView('dashboard');
+        // Check if terms are accepted
+        const termsAccepted = EncryptedStorage.areTermsAccepted();
+        setTermsAccepted(termsAccepted);
+        console.log('Terms accepted:', termsAccepted);
+        
+        if (termsAccepted) {
+          // Check if wallet exists in encrypted storage
+          const walletData = await EncryptedStorage.getWallet();
+          console.log('Wallet data loaded:', walletData ? 'Yes' : 'No');
+          
+          if (walletData) {
+            // Verify wallet integrity
+            const isValid = await EncryptedStorage.verifyWallet();
+            console.log('Wallet validity:', isValid);
+            
+            if (isValid) {
+              setWallet(walletData);
+              setCurrentView('dashboard');
+              console.log('Navigating to dashboard');
+            } else {
+              console.error('Invalid wallet data detected');
+              EncryptedStorage.clearWallet();
+            }
+          } else {
+            console.log('No wallet found, staying on intro');
+          }
+        }
       } catch (error) {
-        console.error('Failed to parse saved wallet:', error);
-        localStorage.removeItem('cyberfence_wallet');
+        console.error('Failed to load app data:', error);
+        // Don't clear wallet on error, just log it
+        console.error('Error details:', error);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    loadApp();
   }, []);
 
-  const handleWalletCreated = (walletData: WalletData) => {
-    // Store only public data in localStorage
-    const publicWalletData = {
-      address: walletData.address,
-      public_key: walletData.public_key,
-      private_key: walletData.private_key, // In production, store this securely
-      mnemonic: walletData.mnemonic, // Keep mnemonic for restoration
-    };
-    
-    localStorage.setItem('cyberfence_wallet', JSON.stringify(publicWalletData));
-    setWallet(publicWalletData);
+  const handleWalletCreated = async (walletData: WalletData) => {
+    try {
+      // Store wallet data encrypted
+      await EncryptedStorage.storeWallet(walletData);
+      setWallet(walletData);
+      setCurrentView('dashboard');
+    } catch (error) {
+      console.error('Failed to store wallet:', error);
+      alert('Failed to store wallet securely. Please try again.');
+    }
   };
 
-  const handleWalletRestored = (walletData: WalletData) => {
-    handleWalletCreated(walletData);
+  const handleWalletRestored = async (walletData: WalletData) => {
+    await handleWalletCreated(walletData);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('cyberfence_wallet');
-    localStorage.removeItem('cyberfence_terms_accepted');
+    EncryptedStorage.clearWallet();
     setWallet(null);
     setTermsAccepted(false);
     setCurrentView('intro');
@@ -68,12 +89,24 @@ function App() {
     setCurrentView('dashboard');
   };
 
+  const handleNavigateToNetwork = () => {
+    setCurrentView('network');
+  };
+
+  const handleNavigateToSettings = () => {
+    setCurrentView('settings');
+  };
+
+  const handleNavigateToDashboard = () => {
+    setCurrentView('dashboard');
+  };
+
   const handleIntroNext = () => {
     setCurrentView('terms');
   };
 
   const handleTermsAccept = () => {
-    localStorage.setItem('cyberfence_terms_accepted', 'true');
+    EncryptedStorage.setTermsAccepted(true);
     setTermsAccepted(true);
     setCurrentView('onboarding');
   };
@@ -127,12 +160,62 @@ function App() {
     );
   }
 
-  if (wallet) {
+  if (currentView === 'network' && wallet) {
     return (
-      <Dashboard 
+      <NetworkPage 
+        wallet={wallet}
+        onLogout={handleLogout}
+        onNavigateToDashboard={handleNavigateToDashboard}
+        onNavigateToSettings={handleNavigateToSettings}
+      />
+    );
+  }
+
+  if (currentView === 'settings' && wallet) {
+    return (
+      <SettingsPage 
+        wallet={wallet}
+        onLogout={handleLogout}
+        onNavigateToDashboard={handleNavigateToDashboard}
+        onNavigateToNetwork={handleNavigateToNetwork}
+      />
+    );
+  }
+
+  if (currentView === 'dashboard' && wallet) {
+    return (
+      <DashboardPage 
         wallet={wallet}
         onLogout={handleLogout}
         onViewHistory={handleShowHistory}
+        onNavigateToNetwork={handleNavigateToNetwork}
+        onNavigateToSettings={handleNavigateToSettings}
+      />
+    );
+  }
+
+  // Fallback: If we have a wallet but view isn't set to dashboard, show dashboard
+  if (wallet && termsAccepted) {
+    return (
+      <DashboardPage 
+        wallet={wallet}
+        onLogout={handleLogout}
+        onViewHistory={handleShowHistory}
+        onNavigateToNetwork={handleNavigateToNetwork}
+        onNavigateToSettings={handleNavigateToSettings}
+      />
+    );
+  }
+
+  // Fallback: If we're on onboarding but wallet exists, go to dashboard
+  if (currentView === 'onboarding' && wallet) {
+    return (
+      <DashboardPage 
+        wallet={wallet}
+        onLogout={handleLogout}
+        onViewHistory={handleShowHistory}
+        onNavigateToNetwork={handleNavigateToNetwork}
+        onNavigateToSettings={handleNavigateToSettings}
       />
     );
   }

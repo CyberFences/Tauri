@@ -408,6 +408,24 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onWalletCreated, onWalle
               </ul>
             </div>
 
+            {/* Machine ID Display */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-night-black mb-3">Machine ID</h3>
+              <div className="bg-violet-essence border-2 border-violet-essence rounded-2xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-precious-persimmon mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                    <span className="text-sm text-palladium">Your unique machine identifier:</span>
+                  </div>
+                  <div className="bg-brilliance border border-precious-persimmon rounded-lg px-4 py-2">
+                    <span className="text-lg font-bold text-night-black font-mono">{wallet.machine_id}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Mnemonic Words Grid */}
             <div className="mb-8">
               <div className="bg-violet-essence border-2 border-violet-essence rounded-2xl p-6">
@@ -427,15 +445,26 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onWalletCreated, onWalle
 
             {/* Action Buttons */}
             <div className="flex justify-between items-center mb-8">
-              <button
-                onClick={() => copyToClipboard(wallet.mnemonic)}
-                className="flex items-center text-precious-persimmon hover:text-opacity-80 transition-colors"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                Copy to clipboard
-              </button>
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => copyToClipboard(wallet.mnemonic)}
+                  className="flex items-center text-precious-persimmon hover:text-opacity-80 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy seed phrase
+                </button>
+                <button
+                  onClick={() => copyToClipboard(wallet.machine_id)}
+                  className="flex items-center text-precious-persimmon hover:text-opacity-80 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy machine ID
+                </button>
+              </div>
               <button 
                 onClick={toggleHideMnemonic}
                 className="flex items-center text-palladium hover:text-night-black transition-colors"
@@ -456,7 +485,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onWalletCreated, onWalle
                 <div>
                   <p className="text-sm text-night-black font-medium mb-1">Important Security Notice</p>
                   <p className="text-sm text-gray-700">
-                    Your private key will be stored securely on your device. Make sure to write down your mnemonic phrase and keep it safe! Anyone with access to this phrase can control your wallet.
+                    Your private key will be stored securely on your device. Make sure to write down your mnemonic phrase and machine ID, and keep them safe! Anyone with access to this phrase can control your wallet. The machine ID is used for device identification.
                   </p>
                 </div>
               </div>

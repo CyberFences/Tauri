@@ -19,6 +19,8 @@ pub fn run() {
             crypto::sign_payload,
             crypto::encrypt_data,
             crypto::decrypt_data,
+            crypto::encrypt_wallet_data,
+            crypto::decrypt_wallet_data,
             // Packet capture commands
                 packet_capture::start_packet_capture,
                 packet_capture::stop_packet_capture,

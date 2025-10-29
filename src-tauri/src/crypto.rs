@@ -6,6 +6,7 @@ use aes_gcm::aead::Aead;
 use serde::{Deserialize, Serialize};
 use hex::{encode, decode};
 use rand::Rng;
+use rand::distributions::Alphanumeric;
 
 #[derive(Serialize, Deserialize)]
 pub struct WalletData {
@@ -13,6 +14,16 @@ pub struct WalletData {
     pub private_key: String,
     pub public_key: String,
     pub address: String,
+    pub machine_id: String,
+}
+
+// ---- GENERATE MACHINE ID ----
+fn generate_machine_id() -> String {
+    let mut rng = rand::thread_rng();
+    (0..6)
+        .map(|_| rng.sample(Alphanumeric) as char)
+        .collect::<String>()
+        .to_uppercase()
 }
 
 // ---- GENERATE WALLET ----
@@ -46,6 +57,7 @@ pub fn generate_wallet() -> WalletData {
         private_key: format!("0x{}", encode(secret_key.secret_bytes())),
         public_key: format!("0x{}", encode(pub_bytes)),
         address,
+        machine_id: generate_machine_id(),
     }
 }
 
@@ -73,6 +85,7 @@ pub fn restore_wallet(mnemonic_phrase: String) -> Result<WalletData, String> {
         private_key: format!("0x{}", encode(secret_key.secret_bytes())),
         public_key: format!("0x{}", encode(pub_bytes)),
         address,
+        machine_id: generate_machine_id(),
     })
 }
 
@@ -138,6 +151,55 @@ pub fn decrypt_data(_privkey_hex: String, ciphertext_hex: String) -> Result<Stri
     // For simplicity, we'll use a dummy key (in production, derive from private key)
     let key_bytes: [u8; 32] = [0u8; 32]; // This should be derived from the private key
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(&key);
+    let nonce = Nonce::from_slice(nonce_bytes);
+    
+    let plaintext = cipher.decrypt(nonce, ciphertext)
+        .map_err(|e| format!("Decryption failed: {}", e))?;
+    
+    Ok(String::from_utf8(plaintext)
+        .map_err(|e| format!("Invalid UTF-8 in decrypted data: {}", e))?)
+}
+
+// ---- ENCRYPT WALLET DATA ----
+#[tauri::command]
+pub fn encrypt_wallet_data(wallet_data: String) -> Result<String, String> {
+    // Generate a random key for this session
+    let mut rng = rand::thread_rng();
+    let key_bytes: [u8; 32] = rng.gen();
+    let nonce_bytes: [u8; 12] = rng.gen();
+    
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(&key);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    
+    let ciphertext = cipher.encrypt(nonce, wallet_data.as_bytes())
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+    
+    // Combine nonce + key + ciphertext for storage
+    let mut result = nonce_bytes.to_vec();
+    result.extend_from_slice(&key_bytes);
+    result.extend_from_slice(&ciphertext);
+    
+    Ok(encode(result))
+}
+
+// ---- DECRYPT WALLET DATA ----
+#[tauri::command]
+pub fn decrypt_wallet_data(encrypted_data: String) -> Result<String, String> {
+    let data_bytes = decode(encrypted_data)
+        .map_err(|e| format!("Invalid encrypted data hex: {}", e))?;
+    
+    if data_bytes.len() < 44 { // 12 (nonce) + 32 (key) + at least some ciphertext
+        return Err("Invalid encrypted data: too short".to_string());
+    }
+    
+    // Split nonce, key, and ciphertext
+    let nonce_bytes = &data_bytes[0..12];
+    let key_bytes = &data_bytes[12..44];
+    let ciphertext = &data_bytes[44..];
+    
+    let key = Key::<Aes256Gcm>::from_slice(key_bytes);
     let cipher = Aes256Gcm::new(&key);
     let nonce = Nonce::from_slice(nonce_bytes);
     

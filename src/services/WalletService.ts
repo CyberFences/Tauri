@@ -5,6 +5,7 @@ export interface WalletData {
   private_key: string;
   public_key: string;
   address: string;
+  machine_id: string;
 }
 
 export interface AlertPayload {
