@@ -137,15 +137,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ wallet, onLogout, onViewHi
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Check admin privileges first
-        const hasAdmin = await NetworkService.checkAdminPrivileges();
-        setHasAdminPrivileges(hasAdmin);
-        
-        if (!hasAdmin) {
-          console.warn('No administrator privileges detected. Packet capture may not work.');
-          setIsLoading(false);
-          return;
-        }
+        // Assume admin privileges are available (handled by Tauri backend)
+        setHasAdminPrivileges(true);
 
         // Check if capture is already active
         const captureActive = await NetworkService.isCaptureActive();
@@ -544,11 +537,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ wallet, onLogout, onViewHi
               <button className="p-2 text-palladium hover:text-night-black transition-colors">
                 <Bell className="w-5 h-5" />
               </button>
-              <button className="flex items-center space-x-2 px-4 py-2 bg-precious-persimmon text-brilliance rounded-lg hover:bg-opacity-90 transition-colors">
+              <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-colors shadow-md">
                 <Download className="w-4 h-4" />
                 <span>Export</span>
               </button>
-              <button className="flex items-center space-x-2 px-4 py-2 border border-violet-essence text-night-black rounded-lg hover:bg-violet-essence transition-colors">
+              <button className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 text-night-black rounded-lg hover:bg-gray-50 transition-colors">
                 <Filter className="w-4 h-4" />
                 <span>Filters</span>
               </button>
@@ -659,7 +652,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ wallet, onLogout, onViewHi
             <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-night-black">Threat Distribution</h3>
-                <button className="text-precious-persimmon hover:text-opacity-80 text-sm">View Details</button>
+                <button className="px-4 py-2 bg-white border border-gray-300 text-night-black rounded-lg hover:bg-gray-50 text-sm transition-colors">View Details</button>
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -707,7 +700,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ wallet, onLogout, onViewHi
                   <h3 className="text-lg font-semibold text-night-black">Recent Alerts</h3>
                   <button
                     onClick={onViewHistory}
-                    className="text-precious-persimmon hover:text-opacity-80 text-sm"
+                    className="px-4 py-2 bg-white border border-gray-300 text-night-black rounded-lg hover:bg-gray-50 text-sm transition-colors"
                   >
                     View All
                   </button>
@@ -860,10 +853,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ wallet, onLogout, onViewHi
                     <button
                       onClick={handleExportCSV}
                       disabled={isExportingCSV}
-                      className={`flex items-center space-x-2 px-4 py-2 border border-violet-essence text-night-black rounded-lg transition-colors ${
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors shadow-md ${
                         isExportingCSV 
-                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed border-gray-400'
-                          : 'hover:bg-violet-essence'
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
                       }`}
                     >
                       {isExportingCSV ? (

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { WalletData } from '../services/WalletService';
 import { BlockchainService } from '../services/BlockchainService';
+import { useNodeStatus, NodeStatus } from '../hooks/useNodeStatus';
+import { Sidebar } from './Sidebar';
 import { 
   AreaChart, 
   Area, 
@@ -15,19 +17,18 @@ import {
 } from 'recharts';
 import { 
   Shield, 
-  Activity, 
   AlertTriangle, 
   CheckCircle, 
   Clock, 
-  TrendingUp, 
-  Settings, 
   Bell, 
   Search,
   Download,
   Filter,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  ShieldCheck,
+  ShieldOff
 } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -36,6 +37,15 @@ interface DashboardPageProps {
   onViewHistory: () => void;
   onNavigateToNetwork: () => void;
   onNavigateToSettings: () => void;
+  onNavigateToGovernance?: () => void;
+  onNavigateToAlerts?: () => void;
+  onNavigateToTrafficHistory?: () => void;
+  onNavigateToAnalytics?: () => void;
+  onNavigateToValidator?: () => void;
+  // shared node state from App
+  sharedNode?: NodeStatus | null;
+  sharedNodeLoading?: boolean;
+  onRefreshNode?: () => void;
 }
 
 interface Alert {
@@ -54,7 +64,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onLogout, 
   onViewHistory, 
   onNavigateToNetwork,
-  onNavigateToSettings 
+  onNavigateToSettings,
+  onNavigateToGovernance,
+  onNavigateToAlerts,
+  onNavigateToTrafficHistory,
+  onNavigateToAnalytics,
+  onNavigateToValidator,
+  sharedNode,
+  sharedNodeLoading,
+  onRefreshNode,
 }) => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,25 +86,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     isValidating: false
   });
 
-  const refreshBlockchainStatus = async () => {
+  const { node: ownNode, loading: ownNodeLoading, fetch: ownFetchNode } = useNodeStatus(wallet.machine_id || '');
+  const node = sharedNode !== undefined ? sharedNode : ownNode;
+  const nodeLoading = sharedNodeLoading !== undefined ? sharedNodeLoading : ownNodeLoading;
+  const fetchNode = onRefreshNode ?? ownFetchNode;
+
+  const refreshAll = async () => {
+    fetchNode();
     setBlockchainStatus(prev => ({ ...prev, isLoading: true, isValidating: false }));
     try {
       const isRegistered = await BlockchainService.verifyMachineRegistration(wallet);
-      setBlockchainStatus({
-        isRegistered,
-        isLoading: false,
-        isValidating: false
-      });
-      console.log('Blockchain status refreshed:', isRegistered);
-    } catch (error) {
-      console.error('Failed to refresh blockchain status:', error);
-      setBlockchainStatus({
-        isRegistered: false,
-        isLoading: false,
-        isValidating: false
-      });
+      setBlockchainStatus({ isRegistered, isLoading: false, isValidating: false });
+    } catch {
+      setBlockchainStatus({ isRegistered: false, isLoading: false, isValidating: false });
     }
   };
+
+  const refreshBlockchainStatus = refreshAll;
 
 
   // Mock data for charts
@@ -151,6 +167,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
       setAlerts(mockAlerts);
 
+      // Fetch node status from Supabase
+      fetchNode();
+
       // Check blockchain registration status
       try {
         // Check if wallet has validating state
@@ -183,7 +202,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     };
 
     loadData();
-  }, [wallet]);
+  }, [wallet, fetchNode]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', { 
@@ -217,6 +236,33 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     }
   };
 
+  const handleNavigate = (page: 'dashboard' | 'network' | 'alerts' | 'governance' | 'history' | 'analytics' | 'settings' | 'validator') => {
+    switch (page) {
+      case 'network':
+        onNavigateToNetwork();
+        break;
+      case 'settings':
+        onNavigateToSettings();
+        break;
+      case 'history':
+        if (onNavigateToTrafficHistory) onNavigateToTrafficHistory();
+        else onViewHistory();
+        break;
+      case 'governance':
+        if (onNavigateToGovernance) onNavigateToGovernance();
+        break;
+      case 'alerts':
+        if (onNavigateToAlerts) onNavigateToAlerts();
+        break;
+      case 'analytics':
+        if (onNavigateToAnalytics) onNavigateToAnalytics();
+        break;
+      case 'validator':
+        if (onNavigateToValidator) onNavigateToValidator();
+        break;
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-brilliance flex items-center justify-center">
@@ -232,77 +278,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="min-h-screen bg-brilliance flex">
-      <div className="w-64 bg-brilliance border-r border-violet-essence flex flex-col fixed left-0 top-0 h-full z-10">
-        <div className="p-6 border-b border-violet-essence">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-precious-persimmon rounded-lg flex items-center justify-center">
-              <Shield className="w-5 h-5 text-brilliance" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-night-black">CyberFence</h1>
-              <p className="text-xs text-palladium">Security Dashboard</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex-1 p-4">
-          <nav className="space-y-2">
-            <a href="#" className="flex items-center space-x-3 px-3 py-2 bg-precious-persimmon bg-opacity-10 text-brilliance rounded-lg">
-              <Activity className="w-5 h-5" />
-              <span className="font-medium">Dashboard</span>
-            </a>
-            <button 
-              onClick={onNavigateToNetwork}
-              className="flex items-center space-x-3 px-3 py-2 w-full text-left text-palladium hover:text-night-black hover:bg-violet-essence rounded-lg transition-colors"
-            >
-              <AlertTriangle className="w-5 h-5" />
-              <span>Network</span>
-            </button>
-            <a href="#" className="flex items-center space-x-3 px-3 py-2 text-palladium hover:text-night-black hover:bg-violet-essence rounded-lg transition-colors">
-              <CheckCircle className="w-5 h-5" />
-              <span>Alerts</span>
-            </a>
-            <button 
-              onClick={onViewHistory}
-              className="flex items-center space-x-3 px-3 py-2 w-full text-left text-palladium hover:text-night-black hover:bg-violet-essence rounded-lg transition-colors"
-            >
-              <Clock className="w-5 h-5" />
-              <span>History</span>
-            </button>
-            <a href="#" className="flex items-center space-x-3 px-3 py-2 text-palladium hover:text-night-black hover:bg-violet-essence rounded-lg transition-colors">
-              <TrendingUp className="w-5 h-5" />
-              <span>Analytics</span>
-            </a>
-            <button 
-              onClick={onNavigateToSettings}
-              className="flex items-center space-x-3 px-3 py-2 w-full text-left text-palladium hover:text-night-black hover:bg-violet-essence rounded-lg transition-colors"
-            >
-              <Settings className="w-5 h-5" />
-              <span>Settings</span>
-            </button>
-          </nav>
-        </div>
-
-        {/* User Profile */}
-        <div className="p-4 border-t border-violet-essence">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-violet-essence rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-night-black">CF</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-night-black">CyberFence User</p>
-              <p className="text-xs text-palladium">{wallet.address.slice(0, 8)}...{wallet.address.slice(-8)}</p>
-            </div>
-          </div>
-          <button
-            onClick={onLogout}
-            className="w-full mt-3 text-left text-sm text-palladium hover:text-night-black transition-colors"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+      {/* Sidebar */}
+      <Sidebar 
+        wallet={wallet}
+        currentPage="dashboard"
+        onNavigate={handleNavigate}
+        onLogout={onLogout}
+        node={node}
+        nodeLoading={nodeLoading}
+        onRefreshNode={fetchNode}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col ml-64">
@@ -323,14 +308,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   className="pl-10 pr-4 py-2 border border-violet-essence rounded-lg bg-brilliance text-night-black placeholder-palladium focus:outline-none focus:ring-2 focus:ring-precious-persimmon"
                 />
               </div>
-              <button className="p-2 text-palladium hover:text-night-black transition-colors">
-                <Bell className="w-5 h-5" />
+              <button
+                onClick={refreshAll}
+                className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 text-night-black rounded-lg hover:bg-gray-50 transition-colors"
+                title="Refresh all data"
+              >
+                <RefreshCw className={`w-4 h-4 ${(blockchainStatus.isLoading || nodeLoading) ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
               </button>
-              <button className="flex items-center space-x-2 px-4 py-2 bg-precious-persimmon text-brilliance rounded-lg hover:bg-opacity-90 transition-colors">
+              <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg hover:from-orange-600 hover:to-red-600 transition-colors shadow-md">
                 <Download className="w-4 h-4" />
                 <span>Export</span>
               </button>
-              <button className="flex items-center space-x-2 px-4 py-2 border border-violet-essence text-night-black rounded-lg hover:bg-violet-essence transition-colors">
+              <button className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 text-night-black rounded-lg hover:bg-gray-50 transition-colors">
                 <Filter className="w-4 h-4" />
                 <span>Filters</span>
               </button>
@@ -340,65 +330,101 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
         {/* Dashboard Content */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-            <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
+          {/* Stats Cards — all 5 in one row */}
+          <div className="grid grid-cols-5 gap-4 mb-8">
+
+            {/* Total Threats */}
+            <div className="bg-brilliance border border-violet-essence rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-palladium mb-1">Total Threats</p>
                   <p className="text-3xl font-bold text-night-black">1,247</p>
                   <p className="text-sm text-green-600">+12% from last week</p>
                 </div>
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                <div className="w-11 h-11 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
+            {/* Active Alerts */}
+            <div className="bg-brilliance border border-violet-essence rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-palladium mb-1">Active Alerts</p>
                   <p className="text-3xl font-bold text-night-black">23</p>
                   <p className="text-sm text-orange-600">3 new today</p>
                 </div>
-                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                  <Bell className="w-6 h-6 text-orange-600" />
+                <div className="w-11 h-11 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bell className="w-5 h-5 text-orange-600" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
+            {/* Network Health */}
+            <div className="bg-brilliance border border-violet-essence rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-palladium mb-1">Network Health</p>
                   <p className="text-3xl font-bold text-night-black">98.5%</p>
                   <p className="text-sm text-green-600">Excellent</p>
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
+                <div className="w-11 h-11 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
+            {/* Validator Status */}
+            <div className={`border rounded-xl p-5 shadow-sm ${
+              node?.is_validator ? 'bg-green-50 border-green-200' : 'bg-brilliance border-violet-essence'
+            }`}>
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-palladium mb-1">Response Time</p>
-                  <p className="text-3xl font-bold text-night-black">&lt;50ms</p>
-                  <p className="text-sm text-green-600">Optimal</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <p className="text-sm text-palladium">Validator Status</p>
+                    <button
+                      onClick={fetchNode}
+                      disabled={nodeLoading}
+                      className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                      title="Refresh validator status"
+                    >
+                      <RefreshCw className={`w-3 h-3 text-palladium hover:text-night-black ${nodeLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                  {nodeLoading ? (
+                    <p className="text-2xl font-bold text-palladium">Loading...</p>
+                  ) : node?.is_validator ? (
+                    <>
+                      <p className="text-2xl font-bold text-green-700">Validator</p>
+                      <p className="text-sm text-green-600">Active · Trust {node.trust_score}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-2xl font-bold text-night-black">Standard</p>
+                      <p className="text-sm text-palladium">Not a validator</p>
+                    </>
+                  )}
                 </div>
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-blue-600" />
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  node?.is_validator ? 'bg-green-200' : 'bg-gray-100'
+                }`}>
+                  {nodeLoading ? (
+                    <div className="w-5 h-5 border-2 border-palladium border-t-transparent rounded-full animate-spin" />
+                  ) : node?.is_validator ? (
+                    <ShieldCheck className="w-5 h-5 text-green-700" />
+                  ) : (
+                    <ShieldOff className="w-5 h-5 text-palladium" />
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Blockchain Registration Status */}
-            <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
+            {/* Blockchain */}
+            <div className="bg-brilliance border border-violet-essence rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
                     <p className="text-sm text-palladium">Blockchain</p>
                     <button
                       onClick={refreshBlockchainStatus}
@@ -413,45 +439,38 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   ) : blockchainStatus.isValidating ? (
                     <>
                       <p className="text-2xl font-bold text-blue-600">Validating...</p>
-                      <p className="text-sm text-blue-600">
-                        Confirming registration on blockchain
-                      </p>
+                      <p className="text-sm text-blue-600">Confirming on-chain</p>
                     </>
                   ) : (
                     <>
                       <p className="text-2xl font-bold text-night-black">
                         {blockchainStatus.isRegistered ? 'Registered' : 'Not Registered'}
                       </p>
-                      <p className={`text-sm ${
-                        blockchainStatus.isRegistered ? 'text-green-600' : 'text-orange-600'
-                      }`}>
+                      <p className={`text-sm ${blockchainStatus.isRegistered ? 'text-green-600' : 'text-orange-600'}`}>
                         {blockchainStatus.isRegistered ? 'On-chain' : 'Pending'}
                       </p>
                     </>
                   )}
                 </div>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  blockchainStatus.isLoading 
-                    ? 'bg-gray-100' 
-                    : blockchainStatus.isValidating
-                      ? 'bg-blue-100'
-                    : blockchainStatus.isRegistered 
-                      ? 'bg-green-100' 
-                      : 'bg-orange-100'
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  blockchainStatus.isLoading ? 'bg-gray-100'
+                    : blockchainStatus.isValidating ? 'bg-blue-100'
+                    : blockchainStatus.isRegistered ? 'bg-green-100'
+                    : 'bg-orange-100'
                 }`}>
                   {blockchainStatus.isLoading ? (
-                    <div className="w-4 h-4 border-2 border-palladium border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-palladium border-t-transparent rounded-full animate-spin" />
                   ) : blockchainStatus.isValidating ? (
-                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                   ) : blockchainStatus.isRegistered ? (
-                    <CheckCircle className="w-6 h-6 text-green-600" />
+                    <CheckCircle className="w-5 h-5 text-green-600" />
                   ) : (
-                    <Clock className="w-6 h-6 text-orange-600" />
+                    <Clock className="w-5 h-5 text-orange-600" />
                   )}
                 </div>
               </div>
             </div>
-            
+
           </div>
 
           {/* Charts Row */}
@@ -498,7 +517,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div className="bg-brilliance border border-violet-essence rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-night-black">Threat Distribution</h3>
-                <button className="text-precious-persimmon hover:text-opacity-80 text-sm">View Details</button>
+                <button className="px-4 py-2 bg-white border border-gray-300 text-night-black rounded-lg hover:bg-gray-50 text-sm transition-colors">View Details</button>
               </div>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -546,7 +565,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   <h3 className="text-lg font-semibold text-night-black">Recent Alerts</h3>
                   <button
                     onClick={onViewHistory}
-                    className="text-precious-persimmon hover:text-opacity-80 text-sm"
+                    className="px-4 py-2 bg-white border border-gray-300 text-night-black rounded-lg hover:bg-gray-50 text-sm transition-colors"
                   >
                     View All
                   </button>
